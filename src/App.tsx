@@ -94,6 +94,7 @@ export default function App() {
       <CssBaseline />
       <Container maxWidth={"md"}>
         <h1>All updates are intentionally slow</h1>
+        <h1>Turning on "highlight updates" in react devtools encouraged</h1>
 
         <button onClick={forceUpdate}>Force update app</button>
         <h1>
