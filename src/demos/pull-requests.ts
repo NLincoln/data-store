@@ -53,6 +53,7 @@ let wait = (timeout: number) => new Promise(r => setTimeout(r, timeout));
 
 const model: Model<PullRequest> = {
   async query(params) {
+    console.log("[QUERY] /pull-requsts", params);
     await wait(150);
     return Object.values(database).filter(pr => {
       return Object.entries(params).every(([key, value]) => {
@@ -61,10 +62,12 @@ const model: Model<PullRequest> = {
     });
   },
   async getById(id) {
+    console.log("[FIND-RECORD] /pull-requests", id);
     await wait(150);
     return database[id];
   },
   async update(id, data) {
+    console.log("[UPDATE] /pull-requsts", id, data);
     await wait(150);
     let prevData = database[id];
     database[id] = {

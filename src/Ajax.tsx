@@ -78,15 +78,15 @@ class ModelImpl<TType extends IdRecord> {
   }
 
   async update(id: string, data: Partial<TType>): Promise<TType> {
-    let response = await this.model.update(id, data);
-    // super unsafe code but honestly reflection with ts is a pain.
     let cacheRecord = this._cache[id] as any;
+    this.patchCache(id, data);
+    let response = await this.model.update(id, data);
 
     Object.keys(cacheRecord).forEach(key => {
       let cacheValue = cacheRecord[key];
       this.invalidate(key as keyof TType, cacheValue);
-      if (data.hasOwnProperty(key)) {
-        this.invalidate(key as keyof TType, (data as any)[key]);
+      if (cacheValue !== (response as any)[key]) {
+        this.invalidate(key as keyof TType, (response as any)[key]);
       }
     });
 
@@ -128,6 +128,14 @@ class ModelImpl<TType extends IdRecord> {
 
   private pushToCache(record: TType) {
     this._cache[record.id] = record;
+  }
+
+  private patchCache(id: string, data: Partial<TType>) {
+    let prevData = this._cache[id];
+    this._cache[id] = {
+      ...prevData,
+      ...data
+    };
   }
 
   private invalidateRecord(id: string) {
@@ -196,15 +204,6 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
       ...state,
       update: async (id: string, data: Partial<TType>) => {
         await ajax.update(id, data);
-        cb(ajax).then(data => {
-          if (!isMountedRef.current) {
-            return;
-          }
-          dispatch({
-            type: "FINISHED",
-            data
-          });
-        });
       }
     };
   }
