@@ -1,5 +1,4 @@
 import React, { useContext, useReducer, useEffect, useCallback } from "react";
-import useRefMounted from "react-use/lib/useRefMounted";
 
 type InvalidateFn = () => void;
 type ValueOf<T> = T[keyof T];
@@ -170,8 +169,6 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
       onInvalidate: InvalidateFn
     ) => () => void
   ): AsyncResult<TType, TData> {
-    let isMountedRef = useRefMounted();
-
     let ajax = useContext(Context);
     let [state, dispatch] = useReducer<
       React.Reducer<AsyncState<TData>, AsyncAction<TData>>
