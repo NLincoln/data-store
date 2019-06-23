@@ -1,5 +1,5 @@
 import React from "react";
-import { useGetById, UseQueryResult, useQuery } from "./Ajax";
+import { useGetById, useQuery, AsyncResult } from "./Ajax";
 
 type ID = string;
 
@@ -33,7 +33,7 @@ type FetchResult<T extends DataRecord> =
 
 function usePullRequests(params: {
   status: PullRequestStatus;
-}): UseQueryResult<PullRequest> {
+}): AsyncResult<PullRequest, PullRequest[]> {
   return useQuery(params.status);
 }
 
@@ -49,7 +49,7 @@ function PullRequestList(props: { status: PullRequestStatus }) {
     <div>
       <h1>{props.status}</h1>
       {result.data.map(pr => {
-        return <PullRequestView id={pr.id} />;
+        return <PullRequestView key={pr.id} id={pr.id} />;
       })}
     </div>
   );
@@ -69,7 +69,7 @@ function PullRequestView(props: { id: string }) {
       <select
         value={pr.status}
         onChange={event => {
-          result.update!({
+          result.update!(pr.id, {
             status: PullRequestStatus[
               event.target.value as any
             ] as PullRequestStatus

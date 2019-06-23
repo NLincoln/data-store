@@ -43,6 +43,46 @@ let database: { [x: string]: DbRecord } = {
   }
 };
 
+type AsyncState<T> =
+  | {
+      isLoading: true;
+      data: null;
+    }
+  | {
+      isLoading: false;
+      data: T;
+    };
+
+type AsyncAction<T> =
+  | {
+      type: "FINISHED";
+      data: T;
+    }
+  | {
+      type: "UPDATE";
+      data: T;
+    };
+
+function asyncReducer<T>(
+  state: AsyncState<T>,
+  action: AsyncAction<T>
+): AsyncState<T> {
+  if (action.type === "FINISHED") {
+    return {
+      isLoading: false,
+      data: action.data
+    };
+  }
+  return state;
+}
+
+function getInitialAsyncState<T>(): AsyncState<T> {
+  return {
+    isLoading: true,
+    data: null
+  };
+}
+
 let wait = (timeout: number) => new Promise(r => setTimeout(r, timeout));
 
 let ajax: Ajax = {
@@ -60,48 +100,21 @@ let ajax: Ajax = {
 
 let Context = React.createContext<Ajax>(ajax);
 
-export type UseGetByIdResult<T> =
-  | {
-      isLoading: true;
-      data: null;
-      update: null;
-    }
-  | {
-      isLoading: false;
-      data: T;
-      update: (val: Partial<T>) => Promise<void>;
-    };
-type GetByIdAction<T> = {
-  type: "FINISHED";
-  data: T;
+export type AsyncResult<TType, TData> = AsyncState<TData> & {
+  update: (id: string, val: Partial<TType>) => Promise<void>;
 };
 
-export function useGetById<T>(id: string): UseGetByIdResult<T> {
+function useAsync<TType, TData>(
+  cb: (ajax: Ajax) => Promise<TData>
+): AsyncResult<TType, TData> {
   let ajax = useContext(Context);
-  let [state, dispatch] = useReducer(
-    (
-      state: UseGetByIdResult<T>,
-      action: GetByIdAction<T>
-    ): UseGetByIdResult<T> => {
-      if (action.type === "FINISHED") {
-        return {
-          isLoading: false,
-          data: action.data,
-          update: (val: Partial<T>) => Promise.resolve()
-        };
-      }
-      return state;
-    },
-    {
-      isLoading: true,
-      data: null,
-      update: null
-    }
-  );
+  let [state, dispatch] = useReducer<
+    React.Reducer<AsyncState<TData>, AsyncAction<TData>>
+  >(asyncReducer, getInitialAsyncState<TData>());
 
   useEffect(() => {
     let isCurrent = true;
-    ajax.getById<T>(id).then(data => {
+    cb(ajax).then(data => {
       if (!isCurrent) return;
       dispatch({
         type: "FINISHED",
@@ -111,60 +124,18 @@ export function useGetById<T>(id: string): UseGetByIdResult<T> {
     return () => {
       isCurrent = false;
     };
-  }, [id, ajax]);
+  }, [cb, ajax]);
 
-  return state;
+  return {
+    ...state,
+    update: async (id: string, data: Partial<TType>) => {}
+  };
 }
 
-export type UseQueryResult<T> =
-  | {
-      isLoading: true;
-      data: null;
-      update: null;
-    }
-  | {
-      isLoading: false;
-      data: T[];
-      update: (val: Partial<T>) => Promise<void>;
-    };
-type QueryAction<T> = {
-  type: "FINISHED";
-  data: T[];
-};
+export function useGetById<T>(id: string): AsyncResult<T, T> {
+  return useAsync(ajax => ajax.getById<T>(id));
+}
 
-export function useQuery<T>(id: string): UseQueryResult<T> {
-  let ajax = useContext(Context);
-  let [state, dispatch] = useReducer(
-    (state: UseQueryResult<T>, action: QueryAction<T>): UseQueryResult<T> => {
-      if (action.type === "FINISHED") {
-        return {
-          isLoading: false,
-          data: action.data,
-          update: (val: Partial<T>) => Promise.resolve()
-        };
-      }
-      return state;
-    },
-    {
-      isLoading: true,
-      data: null,
-      update: null
-    }
-  );
-
-  useEffect(() => {
-    let isCurrent = true;
-    ajax.query<T>(id).then(data => {
-      if (!isCurrent) return;
-      dispatch({
-        type: "FINISHED",
-        data
-      });
-    });
-    return () => {
-      isCurrent = false;
-    };
-  }, [id, ajax]);
-
-  return state;
+export function useQuery<T>(status: string): AsyncResult<T, T[]> {
+  return useAsync(ajax => ajax.query<T>(status));
 }
