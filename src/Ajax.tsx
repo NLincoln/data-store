@@ -2,9 +2,16 @@ import React, { useContext, useReducer, useEffect, useCallback } from "react";
 import useRefMounted from "react-use/lib/useRefMounted";
 
 type InvalidateFn = () => void;
+type ValueOf<T> = T[keyof T];
 
-type QuerySubscription = {
-  status: string;
+interface IdRecord {
+  id: string;
+}
+
+type KeySubscription<TType> = {
+  key: keyof TType;
+  value: ValueOf<TType>;
+
   invalidate: InvalidateFn;
 };
 type IdSubscription = {
@@ -14,47 +21,9 @@ type IdSubscription = {
 
 export interface Model<T> {
   getById(id: string): Promise<T>;
-  query(status: string): Promise<T[]>;
+  query(params: Partial<T>): Promise<T[]>;
+  update(id: string, data: Partial<T>): Promise<T>;
 }
-
-interface DbRecord {
-  id: string;
-  title: string;
-  status: string;
-}
-
-let database: { [x: string]: DbRecord } = {
-  "001": {
-    id: "001",
-    title: "Issue 1",
-    status: "Closed"
-  },
-  "002": {
-    id: "002",
-    title: "Issue 2",
-    status: "Closed"
-  },
-  "003": {
-    id: "003",
-    title: "Issue 3",
-    status: "Open"
-  },
-  "004": {
-    id: "004",
-    title: "Issue 4",
-    status: "Open"
-  },
-  "005": {
-    id: "005",
-    title: "Issue 5",
-    status: "Merged"
-  },
-  "006": {
-    id: "006",
-    title: "Issue 6",
-    status: "Merged"
-  }
-};
 
 type AsyncState<T> =
   | {
@@ -90,61 +59,55 @@ function getInitialAsyncState<T>(): AsyncState<T> {
   };
 }
 
-let wait = (timeout: number) => new Promise(r => setTimeout(r, timeout));
-
-class ModelImpl<TType> implements Model<TType> {
-  async getById(id: string): Promise<TType> {
-    await wait(150);
-    return (database[id] as unknown) as TType;
-  }
-  async query(status: string): Promise<TType[]> {
-    await wait(150);
-
-    return (Object.values(database).filter(
-      record => record.status === status
-    ) as unknown) as TType[];
-  }
-  private _querySubscriptions: QuerySubscription[] = [];
+class ModelImpl<TType extends IdRecord> {
+  constructor(private model: Model<TType>) {}
+  private _keySubscriptions: KeySubscription<TType>[] = [];
   private _idSubscriptions: IdSubscription[] = [];
+  private _cache: { [x: string]: TType } = {};
+
+  async getById(id: string): Promise<TType> {
+    let data = await this.model.getById(id);
+    this.pushToCache(data);
+    return data;
+  }
+
+  async query(params: Partial<TType>): Promise<TType[]> {
+    let data = await this.model.query(params);
+    data.forEach(record => this.pushToCache(record));
+    return data;
+  }
 
   async update(id: string, data: Partial<TType>): Promise<TType> {
-    /**
-     * This is only simulating a database update.
-     * In reality this would go out to a server.
-     * The invalidation logic remains unchanged though.
-     */
-    await wait(150);
-    let prevData = database[id];
-    database[id] = {
-      ...prevData,
-      ...data
-    };
-    let dataRecord = data as Partial<DbRecord>;
+    let response = await this.model.update(id, data);
+    // super unsafe code but honestly reflection with ts is a pain.
+    let cacheRecord = this._cache[id] as any;
+
+    Object.keys(cacheRecord).forEach(key => {
+      let cacheValue = cacheRecord[key];
+      this.invalidate(key as keyof TType, cacheValue);
+      if (data.hasOwnProperty(key)) {
+        this.invalidate(key as keyof TType, (data as any)[key]);
+      }
+    });
+
     this.invalidateRecord(id);
-    if (dataRecord.status) {
-      /**
-       * If the status changed, we update the subs for the old
-       * status and new
-       */
-      this.invalidateStatus(prevData.status);
-      this.invalidateStatus(dataRecord.status);
-    } else {
-      /**
-       * Otherwise we just update the records current status
-       */
-      this.invalidateStatus(prevData.status);
-    }
-    return (database[id] as unknown) as TType;
+    this.pushToCache(response);
+    return response;
   }
 
-  subscribe(status: string, onInvalidate: InvalidateFn): () => void {
-    let subscription = {
-      status,
+  subscribe(
+    key: keyof TType,
+    value: ValueOf<TType>,
+    onInvalidate: InvalidateFn
+  ): () => void {
+    let subscription: KeySubscription<TType> = {
+      key,
+      value,
       invalidate: onInvalidate
     };
-    this._querySubscriptions.push(subscription);
+    this._keySubscriptions.push(subscription);
     return () => {
-      this._querySubscriptions = this._querySubscriptions.filter(
+      this._keySubscriptions = this._keySubscriptions.filter(
         sub => sub !== subscription
       );
     };
@@ -163,15 +126,19 @@ class ModelImpl<TType> implements Model<TType> {
     };
   }
 
+  private pushToCache(record: TType) {
+    this._cache[record.id] = record;
+  }
+
   private invalidateRecord(id: string) {
     this._idSubscriptions
       .filter(sub => sub.id === id)
       .forEach(sub => sub.invalidate());
   }
 
-  private invalidateStatus(status: string) {
-    this._querySubscriptions
-      .filter(sub => sub.status === status)
+  private invalidate(key: keyof TType, value: ValueOf<TType>) {
+    this._keySubscriptions
+      .filter(sub => sub.key === key && sub.value === value)
       .forEach(sub => {
         sub.invalidate();
       });
@@ -182,8 +149,8 @@ export type AsyncResult<TType, TData> = AsyncState<TData> & {
   update: (id: string, val: Partial<TType>) => Promise<void>;
 };
 
-export function createModel<TType>() {
-  let Context = React.createContext<ModelImpl<TType>>(new ModelImpl());
+export function createModel<TType extends IdRecord>(model: Model<TType>) {
+  let Context = React.createContext<ModelImpl<TType>>(new ModelImpl(model));
 
   function useAsync<TData>(
     cb: (ajax: Model<TType>) => Promise<TData>,
@@ -253,14 +220,21 @@ export function createModel<TType>() {
       return useAsync<TType>(cb, createSub);
     },
 
-    useQuery(status: string): AsyncResult<TType, TType[]> {
-      let cb = useCallback((ajax: Model<TType>) => ajax.query(status), [
-        status
+    useQuery(params: Partial<TType>): AsyncResult<TType, TType[]> {
+      let cb = useCallback((ajax: Model<TType>) => ajax.query(params), [
+        params
       ]);
       let createSub = useCallback(
-        (ajax: ModelImpl<TType>, onInvalidate: InvalidateFn) =>
-          ajax.subscribe(status, onInvalidate),
-        [status]
+        (ajax: ModelImpl<TType>, onInvalidate: InvalidateFn) => {
+          let subs = Object.entries(params).map(([key, value]) =>
+            ajax.subscribe(key as keyof TType, value, onInvalidate)
+          );
+          return () => {
+            subs.forEach(sub => sub());
+          };
+        },
+
+        [params]
       );
       return useAsync<TType[]>(cb, createSub);
     }

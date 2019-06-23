@@ -1,4 +1,4 @@
-import React, { useReducer } from "react";
+import React, { useReducer, useMemo } from "react";
 import {
   PullRequestStatus,
   useQueryPR,
@@ -9,9 +9,13 @@ import Container from "@material-ui/core/Container";
 import { CssBaseline, Grid, Card, CardContent, Input } from "@material-ui/core";
 
 function PullRequestList(props: { status: PullRequestStatus }) {
-  let result = useQueryPR({
-    status: props.status
-  });
+  let params = useMemo(
+    () => ({
+      status: props.status
+    }),
+    [props.status]
+  );
+  let result = useQueryPR(params);
   if (result.isLoading) {
     return null;
   }
