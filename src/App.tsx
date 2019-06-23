@@ -1,44 +1,8 @@
 import React, { useReducer } from "react";
-import { useGetById, useQuery, AsyncResult } from "./Ajax";
-
-type ID = string;
-
-interface DataRecord {
-  id: ID;
-}
-
-enum PullRequestStatus {
-  Merged = "Merged",
-  Closed = "Closed",
-  Open = "Open"
-}
-
-interface PullRequest extends DataRecord {
-  id: ID;
-  status: PullRequestStatus;
-  title: string;
-}
-
-type FetchResult<T extends DataRecord> =
-  | {
-      loading: true;
-      data: null;
-      update: null;
-    }
-  | {
-      loading: false;
-      data: T[];
-      update: (record: Partial<T>) => Promise<void>;
-    };
-
-function usePullRequests(params: {
-  status: PullRequestStatus;
-}): AsyncResult<PullRequest, PullRequest[]> {
-  return useQuery(params.status);
-}
+import { PullRequestStatus, useQueryPR, useFindPR } from "./pull-requests";
 
 function PullRequestList(props: { status: PullRequestStatus }) {
-  let result = usePullRequests({
+  let result = useQueryPR({
     status: props.status
   });
   if (result.isLoading) {
@@ -56,7 +20,7 @@ function PullRequestList(props: { status: PullRequestStatus }) {
 }
 
 function PullRequestView(props: { id: string }) {
-  let result = useGetById<PullRequest>(props.id);
+  let result = useFindPR(props.id);
   if (result.isLoading) {
     return <>loading</>;
   }
@@ -94,9 +58,9 @@ export default function App() {
   return (
     <>
       <button onClick={forceUpdate}>Force update app</button>
+      <PullRequestList status={PullRequestStatus.Closed} />
       <PullRequestList status={PullRequestStatus.Open} />
       <PullRequestList status={PullRequestStatus.Merged} />
-      <PullRequestList status={PullRequestStatus.Closed} />
     </>
   );
 }
