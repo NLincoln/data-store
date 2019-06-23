@@ -66,6 +66,9 @@ class ModelImpl<TType extends IdRecord> {
   private _cache: { [x: string]: TType } = {};
 
   async getById(id: string): Promise<TType> {
+    if (this._cache[id]) {
+      return this._cache[id];
+    }
     let data = await this.model.getById(id);
     this.pushToCache(data);
     return data;
