@@ -1,4 +1,4 @@
-import React, { useContext, useReducer, useEffect } from "react";
+import React, { useContext, useReducer, useEffect, useCallback } from "react";
 
 export interface Ajax {
   getById<T>(id: string): Promise<T>;
@@ -11,32 +11,32 @@ interface DbRecord {
   status: string;
 }
 let database: { [x: string]: DbRecord } = {
-  "pr:001": {
+  "001": {
     id: "001",
     title: "Closed Issue 1",
     status: "Closed"
   },
-  "pr:002": {
+  "002": {
     id: "002",
     title: "Closed Issue 2",
     status: "Closed"
   },
-  "pr:003": {
+  "003": {
     id: "003",
     title: "Open Issue 1",
     status: "Open"
   },
-  "pr:004": {
+  "004": {
     id: "004",
     title: "Open Issue 2",
     status: "Open"
   },
-  "pr:005": {
+  "005": {
     id: "005",
     title: "Merged Issue 1",
     status: "Merged"
   },
-  "pr:006": {
+  "006": {
     id: "006",
     title: "Merged Issue 2",
     status: "Merged"
@@ -128,14 +128,28 @@ function useAsync<TType, TData>(
 
   return {
     ...state,
-    update: async (id: string, data: Partial<TType>) => {}
+    update: async (id: string, data: Partial<TType>) => {
+      let prevData = database[id];
+      database[id] = {
+        ...prevData,
+        ...data
+      };
+      cb(ajax).then(data => {
+        dispatch({
+          type: "FINISHED",
+          data
+        });
+      });
+    }
   };
 }
 
 export function useGetById<T>(id: string): AsyncResult<T, T> {
-  return useAsync(ajax => ajax.getById<T>(id));
+  let cb = useCallback((ajax: Ajax) => ajax.getById<T>(id), [id]);
+  return useAsync(cb);
 }
 
 export function useQuery<T>(status: string): AsyncResult<T, T[]> {
-  return useAsync(ajax => ajax.query<T>(status));
+  let cb = useCallback((ajax: Ajax) => ajax.query<T>(status), [status]);
+  return useAsync(cb);
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useReducer } from "react";
 import { useGetById, useQuery, AsyncResult } from "./Ajax";
 
 type ID = string;
@@ -56,7 +56,7 @@ function PullRequestList(props: { status: PullRequestStatus }) {
 }
 
 function PullRequestView(props: { id: string }) {
-  let result = useGetById<PullRequest>(`pr:${props.id}`);
+  let result = useGetById<PullRequest>(props.id);
   if (result.isLoading) {
     return <>loading</>;
   }
@@ -89,8 +89,11 @@ function PullRequestView(props: { id: string }) {
 }
 
 export default function App() {
+  let forceUpdate = useReducer(v => v + 1, 0)[1];
+
   return (
     <>
+      <button onClick={forceUpdate}>Force update app</button>
       <PullRequestList status={PullRequestStatus.Open} />
       <PullRequestList status={PullRequestStatus.Merged} />
       <PullRequestList status={PullRequestStatus.Closed} />
