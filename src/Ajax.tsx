@@ -31,10 +31,17 @@ type AsyncState<T> =
   | {
       isLoading: true;
       data: null;
+      error: null;
     }
   | {
       isLoading: false;
       data: T;
+      error: null;
+    }
+  | {
+      isLoading: false;
+      data: null;
+      error: Error;
     };
 
 type AsyncAction<TType, TData> =
@@ -45,6 +52,10 @@ type AsyncAction<TType, TData> =
   | {
       type: "UPDATE";
       record: TType;
+    }
+  | {
+      type: "ERROR";
+      error: any;
     };
 
 function asyncReducer<TType extends IdRecord, TData>(
@@ -54,7 +65,8 @@ function asyncReducer<TType extends IdRecord, TData>(
   if (action.type === "FINISHED") {
     return {
       isLoading: false,
-      data: action.data
+      data: action.data,
+      error: null
     };
   } else if (action.type === "UPDATE") {
     if (Array.isArray(state.data)) {
@@ -66,14 +78,22 @@ function asyncReducer<TType extends IdRecord, TData>(
       });
       return {
         isLoading: false,
-        data: (next as unknown) as TData
+        data: (next as unknown) as TData,
+        error: null
       };
     } else {
       return {
         isLoading: false,
-        data: (action.record as unknown) as TData
+        data: (action.record as unknown) as TData,
+        error: null
       };
     }
+  } else if (action.type === "ERROR") {
+    return {
+      isLoading: false,
+      data: null,
+      error: action.error
+    };
   }
   return state;
 }
@@ -81,7 +101,8 @@ function asyncReducer<TType extends IdRecord, TData>(
 function getInitialAsyncState<T>(): AsyncState<T> {
   return {
     isLoading: true,
-    data: null
+    data: null,
+    error: null
   };
 }
 
@@ -213,15 +234,28 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
 
     useEffect(() => {
       let isCurrent = true;
-      let onInvalidate: InvalidateFn<TType> = async (data, type) => {
+      let refetch = async () => {
         if (!isCurrent) return;
-        if (type === InvalidationType.Related) {
+        try {
           let freshData = await cb(ajax);
           if (!isCurrent) return;
           dispatch({
             type: "FINISHED",
             data: freshData
           });
+        } catch (err) {
+          if (!isCurrent) return;
+          dispatch({
+            type: "ERROR",
+            error: err
+          });
+        }
+      };
+
+      let onInvalidate: InvalidateFn<TType> = async (data, type) => {
+        if (!isCurrent) return;
+        if (type === InvalidationType.Related) {
+          await refetch();
         } else if (type === InvalidationType.Unrelated) {
           dispatch({
             type: "UPDATE",
@@ -229,13 +263,8 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
           });
         }
       };
-      cb(ajax).then(data => {
-        if (!isCurrent) return;
-        dispatch({
-          type: "FINISHED",
-          data
-        });
-      });
+
+      refetch();
 
       let subscription = createSub(ajax, onInvalidate);
 
@@ -248,7 +277,7 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
     return {
       ...state,
       update: async (id: string, data: Partial<TType>) => {
-        await ajax.update(id, data);
+        ajax.update(id, data);
       }
     };
   }

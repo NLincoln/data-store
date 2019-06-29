@@ -1,4 +1,4 @@
-import { createModel, Model } from "../Ajax";
+import { createModel, Model, AsyncResult } from "../Ajax";
 
 type ID = string;
 
@@ -51,9 +51,28 @@ export interface PullRequest extends DataRecord {
 }
 let wait = (timeout: number) => new Promise(r => setTimeout(r, timeout));
 
+class NotFoundError extends Error {
+  constructor(id: string, model: string, message?: string) {
+    super(`Failed to look up ${model}:${id} ${message || ""}`);
+  }
+}
+
+let log = (...messages: any[]) => {
+  console.log(...messages);
+  let formatted = messages
+    .map(message => {
+      if (typeof message === "string" || typeof message === "number") {
+        return message;
+      }
+      return JSON.stringify(message);
+    })
+    .join(" ");
+  (window as any).addToNetworkCalls(formatted);
+};
+
 const model: Model<PullRequest> = {
   async query(params) {
-    console.log("[QUERY] /pull-requsts", params);
+    log("[QUERY] /pull-requests", params);
     await wait(150);
     return Object.values(database).filter(pr => {
       return Object.entries(params).every(([key, value]) => {
@@ -62,13 +81,16 @@ const model: Model<PullRequest> = {
     });
   },
   async getById(id) {
-    console.log("[FIND-RECORD] /pull-requests", id);
+    log("[FIND-RECORD] /pull-requests", id);
     await wait(150);
+    if (database[id] === undefined) {
+      throw new NotFoundError(id, "pull-request");
+    }
     return database[id];
   },
   async update(id, data) {
-    console.log("[UPDATE] /pull-requsts", id, data);
-    await wait(150);
+    log("[UPDATE] /pull-requsts", id, data);
+    await wait(250);
     let prevData = database[id];
     database[id] = {
       ...prevData,
@@ -84,6 +106,22 @@ export function useQueryPR(args: Partial<PullRequest>) {
   return pullRequests.useQuery(args);
 }
 
-export function useFindPR(id: ID) {
-  return pullRequests.useGetById(id);
+type UseFindPRResult = (
+  | {
+      isLoading: true;
+      data: null;
+    }
+  | {
+      isLoading: false;
+      data: PullRequest;
+    }) & {
+  update: (id: string, data: Partial<PullRequest>) => Promise<void>;
+};
+
+export function useFindPR(id: ID): UseFindPRResult {
+  let result = pullRequests.useGetById(id);
+  if (result.error) {
+    throw result.error;
+  }
+  return result;
 }

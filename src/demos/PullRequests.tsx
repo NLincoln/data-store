@@ -5,8 +5,8 @@ import {
   useFindPR,
   PullRequest
 } from "./pull-requests";
-import Container from "@material-ui/core/Container";
-import { CssBaseline, Grid, Card, CardContent, Input } from "@material-ui/core";
+import { Grid, Card, CardContent, Input } from "@material-ui/core";
+import ErrorBoundary from "../ErrorBoundary";
 
 function PullRequestList(props: { status: PullRequestStatus }) {
   let params = useMemo(
@@ -18,6 +18,9 @@ function PullRequestList(props: { status: PullRequestStatus }) {
   let result = useQueryPR(params);
   if (result.isLoading) {
     return null;
+  }
+  if (result.error) {
+    return <>Error {result.error.message}</>;
   }
 
   return (
@@ -90,39 +93,70 @@ function PrById(props: { id: string }) {
   return <PullRequestView pr={result.data} onUpdate={result.update} />;
 }
 
+function NetworkCalls(props: {}) {
+  let [networkCalls, addToNetworkCalls] = useReducer(
+    (state: string[], call: string) => [...state, call],
+    []
+  );
+  (window as any).addToNetworkCalls = addToNetworkCalls;
+  return (
+    <>
+      <h1>List of network calls:</h1>
+      <ul>
+        {networkCalls.map(networkCall => (
+          <li>{networkCall}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 export default function App() {
   let forceUpdate = useReducer(v => v + 1, 0)[1];
 
   return (
     <>
-      <h1>All updates are intentionally slow</h1>
-      <h1>Turning on "highlight updates" in react devtools encouraged</h1>
+      <div style={{ display: "flex", padding: 24 }}>
+        <div>
+          <h1>All updates are intentionally slow</h1>
+          <h1>Turning on "highlight updates" in react devtools encouraged</h1>
 
-      <button onClick={forceUpdate}>Force update app</button>
-      <h1>
-        Querying - Note how the list that doesn't change doesn't re-render
-      </h1>
-      <PullRequestList status={PullRequestStatus.Closed} />
-      <PullRequestList status={PullRequestStatus.Open} />
-      <PullRequestList status={PullRequestStatus.Merged} />
+          <button onClick={forceUpdate}>Force update app</button>
+          <h1>
+            Querying - Note how the list that doesn't change doesn't re-render
+          </h1>
+          <PullRequestList status={PullRequestStatus.Closed} />
+          <PullRequestList status={PullRequestStatus.Open} />
+          <PullRequestList status={PullRequestStatus.Merged} />
 
-      <h1>
-        Getting By ID: Note how changing one changes the other with the same ID
-      </h1>
-      <Grid container spacing={2}>
-        <Grid item>
-          <PrById id={"001"} />
-        </Grid>
-        <Grid item>
-          <PrById id={"001"} />
-        </Grid>
-        <Grid item>
-          <PrById id={"002"} />
-        </Grid>
-        <Grid item>
-          <PrById id={"002"} />
-        </Grid>
-      </Grid>
+          <h1>
+            Getting By ID: Note how changing one changes the other with the same
+            ID
+          </h1>
+          <Grid container spacing={2}>
+            <Grid item>
+              <PrById id={"001"} />
+            </Grid>
+            <Grid item>
+              <PrById id={"001"} />
+            </Grid>
+            <Grid item>
+              <PrById id={"002"} />
+            </Grid>
+            <Grid item>
+              <PrById id={"002"} />
+            </Grid>
+            <Grid item>
+              <ErrorBoundary>
+                <PrById id={"010"} />
+              </ErrorBoundary>
+            </Grid>
+          </Grid>
+        </div>
+        <div>
+          <NetworkCalls />
+        </div>
+      </div>
     </>
   );
 }
