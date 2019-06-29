@@ -1,6 +1,7 @@
 import React from "react";
 import PullRequestDemo from "./demos/PullRequests";
 import { Router, Link } from "@reach/router";
+import { CssBaseline, Container } from "@material-ui/core";
 
 function DemosList() {
   return (
@@ -11,6 +12,7 @@ function DemosList() {
           <Link to={"pull-requests"}>Pull Requests</Link>
         </li>
       </ul>
+      <Link to={"about"}>What is this?</Link>
     </>
   );
 }
@@ -18,10 +20,13 @@ function DemosList() {
 export default function App() {
   return (
     <>
-      <Router>
-        <PullRequestDemo path={"pull-requests"} />
-        <DemosList path={"/"} />
-      </Router>
+      <CssBaseline />
+      <Container maxWidth={"md"}>
+        <Router>
+          <PullRequestDemo path={"pull-requests"} />
+          <DemosList path={"/"} />
+        </Router>
+      </Container>
     </>
   );
 }

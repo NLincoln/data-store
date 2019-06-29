@@ -95,38 +95,34 @@ export default function App() {
 
   return (
     <>
-      <CssBaseline />
-      <Container maxWidth={"md"}>
-        <h1>All updates are intentionally slow</h1>
-        <h1>Turning on "highlight updates" in react devtools encouraged</h1>
+      <h1>All updates are intentionally slow</h1>
+      <h1>Turning on "highlight updates" in react devtools encouraged</h1>
 
-        <button onClick={forceUpdate}>Force update app</button>
-        <h1>
-          Querying - Note how the list that doesn't change doesn't re-render
-        </h1>
-        <PullRequestList status={PullRequestStatus.Closed} />
-        <PullRequestList status={PullRequestStatus.Open} />
-        <PullRequestList status={PullRequestStatus.Merged} />
+      <button onClick={forceUpdate}>Force update app</button>
+      <h1>
+        Querying - Note how the list that doesn't change doesn't re-render
+      </h1>
+      <PullRequestList status={PullRequestStatus.Closed} />
+      <PullRequestList status={PullRequestStatus.Open} />
+      <PullRequestList status={PullRequestStatus.Merged} />
 
-        <h1>
-          Getting By ID: Note how changing one changes the other with the same
-          ID
-        </h1>
-        <Grid container spacing={2}>
-          <Grid item>
-            <PrById id={"001"} />
-          </Grid>
-          <Grid item>
-            <PrById id={"001"} />
-          </Grid>
-          <Grid item>
-            <PrById id={"002"} />
-          </Grid>
-          <Grid item>
-            <PrById id={"002"} />
-          </Grid>
+      <h1>
+        Getting By ID: Note how changing one changes the other with the same ID
+      </h1>
+      <Grid container spacing={2}>
+        <Grid item>
+          <PrById id={"001"} />
         </Grid>
-      </Container>
+        <Grid item>
+          <PrById id={"001"} />
+        </Grid>
+        <Grid item>
+          <PrById id={"002"} />
+        </Grid>
+        <Grid item>
+          <PrById id={"002"} />
+        </Grid>
+      </Grid>
     </>
   );
 }
