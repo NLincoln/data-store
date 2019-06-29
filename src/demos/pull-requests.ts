@@ -1,4 +1,4 @@
-import { createModel, Model, AsyncResult } from "../Ajax";
+import { createModel, Model } from "../Ajax";
 
 type ID = string;
 
@@ -74,11 +74,12 @@ const model: Model<PullRequest> = {
   async query(params) {
     log("[QUERY] /pull-requests", params);
     await wait(150);
-    return Object.values(database).filter(pr => {
+    let data = Object.values(database).filter(pr => {
       return Object.entries(params).every(([key, value]) => {
         return pr[key as keyof PullRequest] === value;
       });
     });
+    return data;
   },
   async getById(id) {
     log("[FIND-RECORD] /pull-requests", id);

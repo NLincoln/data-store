@@ -20,7 +20,6 @@ type IdSubscription<TType> = {
   id: string;
   invalidate: InvalidateFn<TType>;
 };
-
 export interface Model<T> {
   getById(id: string): Promise<T>;
   query(params: Partial<T>): Promise<T[]>;

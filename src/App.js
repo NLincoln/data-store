@@ -1,7 +1,7 @@
 import React from "react";
 import PullRequestDemo from "./demos/PullRequests";
 import { Router, Link } from "@reach/router";
-import { CssBaseline, Container } from "@material-ui/core";
+import { CssBaseline } from "@material-ui/core";
 
 function DemosList() {
   return (
