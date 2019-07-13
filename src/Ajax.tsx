@@ -1,6 +1,9 @@
 import React, { useContext, useReducer, useEffect, useCallback } from "react";
 
-type InvalidateFn<TType> = (data: TType, type: InvalidationType) => void;
+type InvalidateFn<TType> = (
+  data: TType,
+  type: InvalidationType
+) => Promise<void>;
 type ValueOf<T> = T[keyof T];
 
 enum InvalidationType {
@@ -131,19 +134,19 @@ class ModelImpl<TType extends IdRecord> {
     let cacheRecord = this._cache[id] as any;
     this.patchCache(id, data);
     let response = await this.model.update(id, data);
-    this.invalidate(cacheRecord, response);
-    this.invalidateRecord(id, response);
+    await this.invalidate(cacheRecord, response);
+    await this.invalidateRecord(id, response);
     this.pushToCache(response);
     return response;
   }
   async create(data: Omit<TType, "id">): Promise<TType> {
     let response = await this.model.create(data);
     this.pushToCache(response);
-    for (let sub of this._querySubscriptions) {
-      if (this.isSubscribingTo(sub.query, response)) {
-        sub.invalidate(response, InvalidationType.Related);
-      }
-    }
+    await Promise.all(
+      this._querySubscriptions
+        .filter(sub => this.isSubscribingTo(sub.query, response))
+        .map(sub => sub.invalidate(response, InvalidationType.Related))
+    );
     return response;
   }
 
@@ -189,18 +192,21 @@ class ModelImpl<TType extends IdRecord> {
   }
 
   private invalidateRecord(id: string, data: TType) {
-    this._idSubscriptions
-      .filter(sub => sub.id === id)
-      .forEach(sub => sub.invalidate(data, InvalidationType.Unrelated));
+    return Promise.all(
+      this._idSubscriptions
+        .filter(sub => sub.id === id)
+        .map(sub => sub.invalidate(data, InvalidationType.Unrelated))
+    );
   }
 
   private isSubscribingTo(query: Partial<TType>, record: TType) {
     return Object.keys(query).every(key => {
-      return (record as any)[key] !== (query as any)[key];
+      return (record as any)[key] === (query as any)[key];
     });
   }
 
   private invalidate(record: TType, patch: TType) {
+    let promises = [];
     for (let sub of this._querySubscriptions) {
       let isSubscribingToPrevious = this.isSubscribingTo(sub.query, record);
       let isSubscribingToNext = this.isSubscribingTo(sub.query, patch);
@@ -212,11 +218,12 @@ class ModelImpl<TType extends IdRecord> {
         isSubscribingToPrevious === isSubscribingToNext;
 
       if (didResultsProbablyStayTheSame) {
-        sub.invalidate(patch, InvalidationType.Unrelated);
+        promises.push(sub.invalidate(patch, InvalidationType.Unrelated));
       } else {
-        sub.invalidate(patch, InvalidationType.Related);
+        promises.push(sub.invalidate(patch, InvalidationType.Related));
       }
     }
+    return Promise.all(promises);
   }
 }
 
@@ -318,6 +325,15 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
       return useCallback(
         (data: Omit<TType, "id">) => {
           return ajax.create(data);
+        },
+        [ajax]
+      );
+    },
+    useUpdateMutation() {
+      let ajax = useContext(Context);
+      return useCallback(
+        (id: string, data: Partial<TType>) => {
+          return ajax.update(id, data);
         },
         [ajax]
       );
