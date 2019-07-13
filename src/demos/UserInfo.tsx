@@ -54,6 +54,11 @@ let userModel = createModel({
       id: String(id)
     };
     return DATABASE[id];
+  },
+  async delete(id: string) {
+    console.log("[DELETE] /users", id);
+    await wait(1000);
+    delete DATABASE[id];
   }
 });
 

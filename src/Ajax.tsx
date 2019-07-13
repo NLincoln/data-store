@@ -28,6 +28,7 @@ export interface Model<T> {
   query(params: Partial<T>): Promise<T[]>;
   update(id: string, data: Partial<T>): Promise<T>;
   create(data: Omit<T, "id">): Promise<T>;
+  delete(id: string): Promise<void>;
 }
 
 type AsyncState<T> =
@@ -148,6 +149,21 @@ class ModelImpl<TType extends IdRecord> {
         .map(sub => sub.invalidate(response, InvalidationType.Related))
     );
     return response;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.model.delete(id);
+    let cacheRecord = this._cache[id];
+    await Promise.all(
+      this._idSubscriptions
+        .filter(sub => sub.id === id)
+        .map(sub => sub.invalidate(cacheRecord, InvalidationType.Related))
+    );
+    await Promise.all(
+      this._querySubscriptions
+        .filter(sub => this.isSubscribingTo(sub.query, cacheRecord))
+        .map(sub => sub.invalidate(cacheRecord, InvalidationType.Related))
+    );
   }
 
   subscribe(
@@ -334,6 +350,15 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
       return useCallback(
         (id: string, data: Partial<TType>) => {
           return ajax.update(id, data);
+        },
+        [ajax]
+      );
+    },
+    useDeleteMutation() {
+      let ajax = useContext(Context);
+      return useCallback(
+        (id: string) => {
+          return ajax.delete(id);
         },
         [ajax]
       );

@@ -109,6 +109,11 @@ const model: Model<PullRequest> = {
       id: String(id)
     };
     return database[id];
+  },
+  async delete(id: string) {
+    log("[DELETE] /pull-requests", id);
+    await wait(1000);
+    delete database[id];
   }
 };
 
