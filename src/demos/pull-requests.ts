@@ -11,6 +11,7 @@ export enum PullRequestStatus {
   Open = "Open"
 }
 
+let autoIncrement = 0;
 let database: { [x: string]: PullRequest } = {
   "001": {
     id: "001",
@@ -96,6 +97,16 @@ const model: Model<PullRequest> = {
     database[id] = {
       ...prevData,
       ...data
+    };
+    return database[id];
+  },
+  async create(data: Omit<PullRequest, "id">): Promise<PullRequest> {
+    log("[CREATE] /pull-requsts", data);
+    await wait(200);
+    let id = autoIncrement++;
+    database[id] = {
+      ...data,
+      id: String(id)
     };
     return database[id];
   }

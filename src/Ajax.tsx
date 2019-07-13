@@ -24,6 +24,7 @@ export interface Model<T> {
   getById(id: string): Promise<T>;
   query(params: Partial<T>): Promise<T[]>;
   update(id: string, data: Partial<T>): Promise<T>;
+  create(data: Omit<T, "id">): Promise<T>;
 }
 
 type AsyncState<T> =
@@ -135,6 +136,16 @@ class ModelImpl<TType extends IdRecord> {
     this.pushToCache(response);
     return response;
   }
+  async create(data: Omit<TType, "id">): Promise<TType> {
+    let response = await this.model.create(data);
+    this.pushToCache(response);
+    for (let sub of this._querySubscriptions) {
+      if (this.isSubscribingTo(sub.query, response)) {
+        sub.invalidate(response, InvalidationType.Related);
+      }
+    }
+    return response;
+  }
 
   subscribe(
     query: Partial<TType>,
@@ -184,12 +195,9 @@ class ModelImpl<TType extends IdRecord> {
   }
 
   private isSubscribingTo(query: Partial<TType>, record: TType) {
-    for (let key in query) {
-      if (record[key] !== query[key]) {
-        return false;
-      }
-    }
-    return true;
+    return Object.keys(query).every(key => {
+      return (record as any)[key] !== (query as any)[key];
+    });
   }
 
   private invalidate(record: TType, patch: TType) {
@@ -265,11 +273,11 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
 
       refetch();
 
-      let subscription = createSub(ajax, onInvalidate);
+      let unsub = createSub(ajax, onInvalidate);
 
       return () => {
         isCurrent = false;
-        subscription();
+        unsub();
       };
     }, [cb, ajax, createSub]);
 
@@ -304,6 +312,15 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
         [params]
       );
       return useAsync<TType[]>(cb, createSub);
+    },
+    useCreateMutation() {
+      let ajax = useContext(Context);
+      return useCallback(
+        (data: Omit<TType, "id">) => {
+          return ajax.create(data);
+        },
+        [ajax]
+      );
     }
   };
 }
