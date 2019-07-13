@@ -1,10 +1,16 @@
-import React, { useContext, useReducer, useEffect, useCallback } from "react";
+import React, {
+  useContext,
+  useReducer,
+  useEffect,
+  useCallback,
+  useState,
+  useRef
+} from "react";
 
 type InvalidateFn<TType> = (
   data: TType,
   type: InvalidationType
 ) => Promise<void>;
-type ValueOf<T> = T[keyof T];
 
 enum InvalidationType {
   Related,
@@ -23,6 +29,11 @@ type IdSubscription<TType> = {
   id: string;
   invalidate: InvalidateFn<TType>;
 };
+
+/**
+ * The base model interface. Consumers of this module MUST implement this interface,
+ * although several helpers will be available to help you out.
+ */
 export interface Model<T> {
   getById(id: string): Promise<T>;
   query(params: Partial<T>): Promise<T[]>;
@@ -34,24 +45,29 @@ export interface Model<T> {
 type AsyncState<T> =
   | {
       isLoading: true;
-      data: null;
+      // can be true when we already have existing data
+      data: null | T;
       error: null;
+      counter: number;
     }
   | {
       isLoading: false;
       data: T;
       error: null;
+      counter: number;
     }
   | {
       isLoading: false;
       data: null;
       error: Error;
+      counter: number;
     };
 
 type AsyncAction<TType, TData> =
   | {
       type: "FINISHED";
       data: TData;
+      counter: number;
     }
   | {
       type: "UPDATE";
@@ -60,17 +76,28 @@ type AsyncAction<TType, TData> =
   | {
       type: "ERROR";
       error: any;
+      counter: number;
     };
 
+/**
+ * A reducer that can manage async state. Can handle most
+ * operations one would need to perform.
+ * @param state
+ * @param action
+ */
 function asyncReducer<TType extends IdRecord, TData>(
   state: AsyncState<TData>,
   action: AsyncAction<TType, TData>
 ): AsyncState<TData> {
   if (action.type === "FINISHED") {
+    if (action.counter < state.counter) {
+      return state;
+    }
     return {
       isLoading: false,
       data: action.data,
-      error: null
+      error: null,
+      counter: action.counter
     };
   } else if (action.type === "UPDATE") {
     if (Array.isArray(state.data)) {
@@ -83,20 +110,26 @@ function asyncReducer<TType extends IdRecord, TData>(
       return {
         isLoading: false,
         data: (next as unknown) as TData,
-        error: null
+        error: null,
+        counter: state.counter!!
       };
     } else {
       return {
         isLoading: false,
         data: (action.record as unknown) as TData,
-        error: null
+        error: null,
+        counter: state.counter!!
       };
     }
   } else if (action.type === "ERROR") {
+    if (action.counter < state.counter) {
+      return state;
+    }
     return {
       isLoading: false,
       data: null,
-      error: action.error
+      error: action.error,
+      counter: action.counter
     };
   }
   return state;
@@ -106,10 +139,19 @@ function getInitialAsyncState<T>(): AsyncState<T> {
   return {
     isLoading: true,
     data: null,
-    error: null
+    error: null,
+    counter: 0
   };
 }
 
+/**
+ * This is where the real guts of this module lies. A ModelImpl is a cache that
+ * operates in terms of subscriptions. Whenever something you're subscribing to changes,
+ * the ModelImpl will dispatch an invalidation for that subscription. To accomplish this it
+ * MUST maintain an internal cache. This is super important because it means that the response
+ * from the api must be consistent between getById / query. Support for _inconsistent_ responses
+ * is planned, but is vvvv difficult so I don't want to both with it for a bit.
+ */
 class ModelImpl<TType extends IdRecord> {
   constructor(private model: Model<TType>) {}
   private _querySubscriptions: QuerySubscription<TType>[] = [];
@@ -117,6 +159,15 @@ class ModelImpl<TType extends IdRecord> {
   private _cache: { [x: string]: TType } = {};
 
   async getById(id: string): Promise<TType> {
+    /**
+     * One of the most controversial decisions I think I'll make. If we already think we
+     * have the value you're looking up in cache, we simply return that. This includes records
+     * found via query, so if getById receives more fields then I'll need to support that. For now tho this
+     * works amazingly.
+     *
+     * The main thing I want to avoid is fetching the same record tons and tons of times. Maybe this is misguided?
+     * If it doesn't seem to effect too much in real-world usage I'll remove it.
+     */
     if (this._cache[id]) {
       return this._cache[id];
     }
@@ -243,6 +294,32 @@ class ModelImpl<TType extends IdRecord> {
   }
 }
 
+/**
+ * Wraps an async function with a boolean that says whether that function is running
+ */
+function useWrapAsyncMutation<F extends Function>(
+  callback: F
+): { isRunning: boolean; execute: F } {
+  /**
+   * Ok this is super buggy when called multiple times and I need to fix that.
+   */
+  let [isRunning, setRunning] = useState(false);
+
+  let execute = useCallback(
+    async (...args) => {
+      setRunning(true);
+      let result = await callback(...args);
+      setRunning(false);
+      return result;
+    },
+    [callback]
+  );
+  return {
+    execute: execute as any,
+    isRunning
+  };
+}
+
 export type AsyncResult<TType, TData> = AsyncState<TData> & {
   update: (id: string, val: Partial<TType>) => Promise<void>;
 };
@@ -262,28 +339,45 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
       React.Reducer<AsyncState<TData>, AsyncAction<TType, TData>>
     >(asyncReducer, getInitialAsyncState<TData>());
 
+    /**
+     * Ok so this is a bit weird, but lemme explain.
+     * So we want to avoid having race conditions in our javascript. With
+     * useEffect this is fairly easy: have an `isCurrent` boolean that is checked
+     * after everything async and set to false in the useEffect cleanup. The hard
+     * part comes when you want to display intermediary results.  Obv we can
+     * throw away the old data, but what we want is to say "ok well there's gonna be
+     * more data coming, but this is better than what we currently have so ship it".
+     *
+     * That is this counter. Each request gets a number.
+     * - If, when we get the response, our request # is less than the currently rendered request #,
+     *   we throw it away.
+     * - If our request is greater than the currently rendered request, we render it.
+     */
+    let counterRef = useRef(0);
+
     useEffect(() => {
-      let isCurrent = true;
+      let counter = ++counterRef.current;
+
       let refetch = async () => {
-        if (!isCurrent) return;
+        if (counter < counterRef.current) return;
         try {
           let freshData = await cb(ajax);
-          if (!isCurrent) return;
           dispatch({
             type: "FINISHED",
-            data: freshData
+            data: freshData,
+            counter
           });
         } catch (err) {
-          if (!isCurrent) return;
           dispatch({
             type: "ERROR",
-            error: err
+            error: err,
+            counter
           });
         }
       };
 
       let onInvalidate: InvalidateFn<TType> = async (data, type) => {
-        if (!isCurrent) return;
+        if (counter < counterRef.current) return;
         if (type === InvalidationType.Related) {
           await refetch();
         } else if (type === InvalidationType.Unrelated) {
@@ -299,7 +393,6 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
       let unsub = createSub(ajax, onInvalidate);
 
       return () => {
-        isCurrent = false;
         unsub();
       };
     }, [cb, ajax, createSub]);
@@ -338,29 +431,35 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
     },
     useCreateMutation() {
       let ajax = useContext(Context);
-      return useCallback(
-        (data: Omit<TType, "id">) => {
-          return ajax.create(data);
-        },
-        [ajax]
+      return useWrapAsyncMutation(
+        useCallback(
+          (data: Omit<TType, "id">) => {
+            return ajax.create(data);
+          },
+          [ajax]
+        )
       );
     },
     useUpdateMutation() {
       let ajax = useContext(Context);
-      return useCallback(
-        (id: string, data: Partial<TType>) => {
-          return ajax.update(id, data);
-        },
-        [ajax]
+      return useWrapAsyncMutation(
+        useCallback(
+          (id: string, data: Partial<TType>) => {
+            return ajax.update(id, data);
+          },
+          [ajax]
+        )
       );
     },
     useDeleteMutation() {
       let ajax = useContext(Context);
-      return useCallback(
-        (id: string) => {
-          return ajax.delete(id);
-        },
-        [ajax]
+      return useWrapAsyncMutation(
+        useCallback(
+          (id: string) => {
+            return ajax.delete(id);
+          },
+          [ajax]
+        )
       );
     }
   };

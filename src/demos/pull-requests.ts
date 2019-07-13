@@ -123,19 +123,7 @@ export function useQueryPR(args: Partial<PullRequest>) {
   return pullRequests.useQuery(args);
 }
 
-type UseFindPRResult = (
-  | {
-      isLoading: true;
-      data: null;
-    }
-  | {
-      isLoading: false;
-      data: PullRequest;
-    }) & {
-  update: (id: string, data: Partial<PullRequest>) => Promise<void>;
-};
-
-export function useFindPR(id: ID): UseFindPRResult {
+export function useFindPR(id: ID) {
   let result = pullRequests.useGetById(id);
   if (result.error) {
     throw result.error;

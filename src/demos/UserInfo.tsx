@@ -1,5 +1,4 @@
-import React, { useState, useCallback } from "react";
-import { createModel } from "../Ajax";
+import React from "react";
 import {
   Container,
   Card,
@@ -10,77 +9,15 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Formik, Field, Form } from "formik";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { createInMemoryModel } from "./common";
 
 interface User {
   id: string;
   username: string;
   isActive: boolean;
 }
-let wait = (t: number) => new Promise(r => setTimeout(r, t));
-let autoIncrement = 1;
-let DATABASE: { [x: string]: User } = {};
 
-let userModel = createModel({
-  async getById(id: string) {
-    console.log("[FIND-RECORD] /users", id);
-    await wait(250);
-    return DATABASE[id] || null;
-  },
-  async query(params: Partial<User>) {
-    console.log("[QUERY] /users", params);
-    await wait(2500);
-
-    return Object.values(DATABASE).filter(user => {
-      return Object.keys(params).every(key => {
-        return (user as any)[key] === (params as any)[key];
-      });
-    });
-  },
-  async update(id: string, update: Partial<User>) {
-    console.log("[UPDATE] /users", id, update);
-    await wait(250);
-    DATABASE[id] = {
-      ...DATABASE[id],
-      ...update
-    };
-    return DATABASE[id];
-  },
-  async create(data: Omit<User, "id">): Promise<User> {
-    console.log("[CREATE] /users", data);
-    await wait(1500);
-    let id = autoIncrement++;
-    DATABASE[id] = {
-      ...data,
-      id: String(id)
-    };
-    return DATABASE[id];
-  },
-  async delete(id: string) {
-    console.log("[DELETE] /users", id);
-    await wait(1000);
-    delete DATABASE[id];
-  }
-});
-
-function useWrapAsyncMutation<F extends Function>(
-  callback: F
-): { isRunning: boolean; execute: F } {
-  let [isRunning, setRunning] = useState(false);
-
-  let execute = useCallback(
-    async (...args) => {
-      setRunning(true);
-      let result = await callback(...args);
-      setRunning(false);
-      return result;
-    },
-    [callback]
-  );
-  return {
-    execute: execute as any,
-    isRunning
-  };
-}
+let userModel = createInMemoryModel<User>({});
 
 let query = {
   isActive: true
@@ -88,10 +25,9 @@ let query = {
 
 export default function UserInfoDemo() {
   let users = userModel.useQuery(query);
-  let createUser = useWrapAsyncMutation(userModel.useCreateMutation());
-  let updateUser = useWrapAsyncMutation(userModel.useUpdateMutation());
+  let createUser = userModel.useCreateMutation();
+  let updateUser = userModel.useUpdateMutation();
 
-  console.log(users);
   if (users.isLoading) {
     return null;
   }
