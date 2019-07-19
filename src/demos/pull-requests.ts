@@ -1,4 +1,4 @@
-import { createModel, Model } from "../Ajax";
+import { createModel, Model, defaultIsSubscribingTo } from "../Ajax";
 
 type ID = string;
 
@@ -72,6 +72,7 @@ let log = (...messages: any[]) => {
 };
 
 const model: Model<PullRequest, Partial<PullRequest>, PullRequest[]> = {
+  isSubscribingTo: defaultIsSubscribingTo,
   transformQueryResponseToArray(response) {
     return response;
   },

@@ -16,6 +16,9 @@ interface Project {
 }
 
 let repositories = createModel<Project, string, { items: Project[] }>({
+  isSubscribingTo(query: string, record: Project) {
+    return record.name.startsWith(query);
+  },
   transformQueryResponseToArray(response) {
     return response.items;
   },

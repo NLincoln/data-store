@@ -1,4 +1,4 @@
-import { createModel } from "../Ajax";
+import { createModel, defaultIsSubscribingTo } from "../Ajax";
 
 export const wait = (t: number) => new Promise(r => setTimeout(r, t));
 
@@ -6,7 +6,8 @@ export function createInMemoryModel<TType extends { id: string }>(database: {
   [x: string]: TType;
 }) {
   let autoIncrement = 0;
-  return createModel({
+  return createModel<TType, Partial<TType>, TType[]>({
+    isSubscribingTo: defaultIsSubscribingTo,
     transformQueryResponseToArray(response: TType[]) {
       return response;
     },

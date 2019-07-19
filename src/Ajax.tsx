@@ -42,7 +42,17 @@ export interface Model<TType, TQuery, TFullData> {
   create(data: Omit<TType, "id">): Promise<TType>;
   delete(id: string): Promise<void>;
 
+  isSubscribingTo(query: TQuery, record: TType): boolean;
   transformQueryResponseToArray(response: TFullData): TType[];
+}
+
+export function defaultIsSubscribingTo<TType>(
+  query: Partial<TType>,
+  record: TType
+): boolean {
+  return Object.keys(query).every(key => {
+    return (query as any)[key] === (record as any)[key];
+  });
 }
 
 type AsyncState<T> =
@@ -273,10 +283,8 @@ class ModelImpl<TType extends IdRecord, TQuery, TFullData> {
     );
   }
 
-  private isSubscribingTo(query: Partial<TType>, record: TType) {
-    return Object.keys(query).every(key => {
-      return (record as any)[key] === (query as any)[key];
-    });
+  isSubscribingTo(query: TQuery, record: TType) {
+    return this.model.isSubscribingTo(query, record);
   }
 
   private invalidate(record: TType, patch: TType) {
