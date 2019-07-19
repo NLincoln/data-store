@@ -21,10 +21,11 @@ interface IdRecord {
   id: string;
 }
 
-type QuerySubscription<TType> = {
-  query: Partial<TType>;
+type QuerySubscription<TType, TQuery> = {
+  query: TQuery;
   invalidate: InvalidateFn<TType>;
 };
+
 type IdSubscription<TType> = {
   id: string;
   invalidate: InvalidateFn<TType>;
@@ -34,12 +35,14 @@ type IdSubscription<TType> = {
  * The base model interface. Consumers of this module MUST implement this interface,
  * although several helpers will be available to help you out.
  */
-export interface Model<T> {
-  getById(id: string): Promise<T>;
-  query(params: Partial<T>): Promise<T[]>;
-  update(id: string, data: Partial<T>): Promise<T>;
-  create(data: Omit<T, "id">): Promise<T>;
+export interface Model<TType, TQuery, TFullData> {
+  getById(id: string): Promise<TType>;
+  query(params: TQuery): Promise<TFullData>;
+  update(id: string, data: Partial<TType>): Promise<TType>;
+  create(data: Omit<TType, "id">): Promise<TType>;
   delete(id: string): Promise<void>;
+
+  transformQueryResponseToArray(response: TFullData): TType[];
 }
 
 type AsyncState<T> =
@@ -152,9 +155,9 @@ function getInitialAsyncState<T>(): AsyncState<T> {
  * from the api must be consistent between getById / query. Support for _inconsistent_ responses
  * is planned, but is vvvv difficult so I don't want to both with it for a bit.
  */
-class ModelImpl<TType extends IdRecord> {
-  constructor(private model: Model<TType>) {}
-  private _querySubscriptions: QuerySubscription<TType>[] = [];
+class ModelImpl<TType extends IdRecord, TQuery, TFullData> {
+  constructor(private model: Model<TType, TQuery, TFullData>) {}
+  private _querySubscriptions: QuerySubscription<TType, TQuery>[] = [];
   private _idSubscriptions: IdSubscription<TType>[] = [];
   private _cache: { [x: string]: TType } = {};
 
@@ -176,9 +179,12 @@ class ModelImpl<TType extends IdRecord> {
     return data;
   }
 
-  async query(params: Partial<TType>): Promise<TType[]> {
+  async query(params: TQuery): Promise<TFullData> {
     let data = await this.model.query(params);
-    data.forEach(record => this.pushToCache(record));
+
+    this.model
+      .transformQueryResponseToArray(data)
+      .forEach(record => this.pushToCache(record));
     return data;
   }
 
@@ -217,11 +223,12 @@ class ModelImpl<TType extends IdRecord> {
     );
   }
 
-  subscribe(
-    query: Partial<TType>,
-    onInvalidate: InvalidateFn<TType>
-  ): () => void {
-    let subscription: QuerySubscription<TType> = {
+  transformQueryResponseToArray(data: TFullData): TType[] {
+    return this.model.transformQueryResponseToArray(data);
+  }
+
+  subscribe(query: TQuery, onInvalidate: InvalidateFn<TType>): () => void {
+    let subscription: QuerySubscription<TType, TQuery> = {
       query,
       invalidate: onInvalidate
     };
@@ -324,13 +331,17 @@ export type AsyncResult<TType, TData> = AsyncState<TData> & {
   update: (id: string, val: Partial<TType>) => Promise<void>;
 };
 
-export function createModel<TType extends IdRecord>(model: Model<TType>) {
-  let Context = React.createContext<ModelImpl<TType>>(new ModelImpl(model));
+export function createModel<TType extends IdRecord, TQuery, TFullData>(
+  model: Model<TType, TQuery, TFullData>
+) {
+  let Context = React.createContext<ModelImpl<TType, TQuery, TFullData>>(
+    new ModelImpl(model)
+  );
 
   function useAsync<TData>(
-    cb: (ajax: Model<TType>) => Promise<TData>,
+    cb: (ajax: Model<TType, TQuery, TFullData>) => Promise<TData>,
     createSub: (
-      ajax: ModelImpl<TType>,
+      ajax: ModelImpl<TType, TQuery, TFullData>,
       onInvalidate: InvalidateFn<TType>
     ) => () => void
   ): AsyncResult<TType, TData> {
@@ -407,27 +418,36 @@ export function createModel<TType extends IdRecord>(model: Model<TType>) {
 
   return {
     useGetById(id: string): AsyncResult<TType, TType> {
-      let cb = useCallback((ajax: Model<TType>) => ajax.getById(id), [id]);
+      let cb = useCallback(
+        (ajax: Model<TType, TQuery, TFullData>) => ajax.getById(id),
+        [id]
+      );
       let createSub = useCallback(
-        (ajax: ModelImpl<TType>, onInvalidate: InvalidateFn<TType>) =>
-          ajax.subscribeToRecord(id, onInvalidate),
+        (
+          ajax: ModelImpl<TType, TQuery, TFullData>,
+          onInvalidate: InvalidateFn<TType>
+        ) => ajax.subscribeToRecord(id, onInvalidate),
         [id]
       );
       return useAsync<TType>(cb, createSub);
     },
 
-    useQuery(params: Partial<TType>): AsyncResult<TType, TType[]> {
-      let cb = useCallback((ajax: Model<TType>) => ajax.query(params), [
-        params
-      ]);
+    useQuery(params: TQuery): AsyncResult<TType, TFullData> {
+      let cb = useCallback(
+        (ajax: Model<TType, TQuery, TFullData>) => ajax.query(params),
+        [params]
+      );
       let createSub = useCallback(
-        (ajax: ModelImpl<TType>, onInvalidate: InvalidateFn<TType>) => {
+        (
+          ajax: ModelImpl<TType, TQuery, TFullData>,
+          onInvalidate: InvalidateFn<TType>
+        ) => {
           return ajax.subscribe(params, onInvalidate);
         },
 
         [params]
       );
-      return useAsync<TType[]>(cb, createSub);
+      return useAsync<TFullData>(cb, createSub);
     },
     useCreateMutation() {
       let ajax = useContext(Context);

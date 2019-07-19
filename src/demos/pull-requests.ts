@@ -71,7 +71,10 @@ let log = (...messages: any[]) => {
   (window as any).addToNetworkCalls(formatted);
 };
 
-const model: Model<PullRequest> = {
+const model: Model<PullRequest, Partial<PullRequest>, PullRequest[]> = {
+  transformQueryResponseToArray(response) {
+    return response;
+  },
   async query(params) {
     log("[QUERY] /pull-requests", params);
     await wait(150);
@@ -117,7 +120,7 @@ const model: Model<PullRequest> = {
   }
 };
 
-const pullRequests = createModel<PullRequest>(model);
+const pullRequests = createModel(model);
 
 export function useQueryPR(args: Partial<PullRequest>) {
   return pullRequests.useQuery(args);

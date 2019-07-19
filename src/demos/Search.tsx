@@ -7,7 +7,6 @@ import {
   CardHeader,
   CardContent
 } from "@material-ui/core";
-import { wait } from "./common";
 
 interface Project {
   id: string;
@@ -16,17 +15,19 @@ interface Project {
   url: string;
 }
 
-let repositories = createModel<Project>({
+let repositories = createModel<Project, string, { items: Project[] }>({
+  transformQueryResponseToArray(response) {
+    return response.items;
+  },
   async getById(id) {
     throw new Error("Not supported");
   },
-  async query(data) {
-    let name = data.name!!;
+  async query(name): Promise<{ items: Project[] }> {
     if (name.length === 0) {
-      return [];
+      return { items: [] };
     }
     let params = new URLSearchParams();
-    params.append("q", data.name!!);
+    params.append("q", name);
     let response = await fetch(
       `https://api.github.com/search/repositories?${params}`
     );
@@ -34,8 +35,7 @@ let repositories = createModel<Project>({
       let err = await response.json();
       throw err;
     }
-    let { items } = await response.json();
-    return items;
+    return await response.json();
   },
   update(id, data) {
     throw new Error("Not supported");
@@ -50,13 +50,7 @@ let repositories = createModel<Project>({
 
 export default function SearchDemo() {
   let [searchValue, setSearchValue] = useState("");
-  let params = useMemo(
-    () => ({
-      name: searchValue
-    }),
-    [searchValue]
-  );
-  let query = repositories.useQuery(params);
+  let query = repositories.useQuery(searchValue);
 
   if (query.isLoading) {
     return null;
@@ -83,7 +77,7 @@ export default function SearchDemo() {
               onChange={event => setSearchValue(event.target.value)}
             />
             <ul>
-              {query.data.map(repo => (
+              {query.data.items.map(repo => (
                 <li key={repo.id}>{repo.full_name}</li>
               ))}
             </ul>

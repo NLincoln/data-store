@@ -7,6 +7,9 @@ export function createInMemoryModel<TType extends { id: string }>(database: {
 }) {
   let autoIncrement = 0;
   return createModel({
+    transformQueryResponseToArray(response: TType[]) {
+      return response;
+    },
     async getById(id: string) {
       console.log("[FIND-RECORD]", id);
       await wait(250);
