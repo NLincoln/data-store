@@ -28,13 +28,13 @@ export default function UserInfoDemo() {
   let createUser = userModel.useCreateMutation();
   let updateUser = userModel.useUpdateMutation();
 
-  if (users.isLoading) {
-    return null;
-  }
   if (users.error) {
     throw users.error;
   }
-  let user: User | null = users.data[0] || null;
+  if (!users.data) {
+    return null;
+  }
+  let user: User | null = users.data.data[0] || null;
   return (
     <>
       <Container maxWidth={"md"} style={{ padding: 24 }}>

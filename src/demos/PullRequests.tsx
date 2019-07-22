@@ -16,11 +16,11 @@ function PullRequestList(props: { status: PullRequestStatus }) {
     [props.status]
   );
   let result = useQueryPR(params);
-  if (result.isLoading) {
-    return null;
-  }
   if (result.error) {
     return <>Error {result.error.message}</>;
+  }
+  if (!result.data) {
+    return null;
   }
 
   return (
@@ -87,7 +87,7 @@ function PullRequestView(props: {
 
 function PrById(props: { id: string }) {
   let result = useFindPR(props.id);
-  if (result.isLoading) {
+  if (!result.data) {
     return <>loading</>;
   }
   return <PullRequestView pr={result.data} onUpdate={result.update} />;

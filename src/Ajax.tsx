@@ -60,7 +60,7 @@ type AsyncState<T> =
       isLoading: true;
       // can be true when we already have existing data
       data: null | T;
-      error: null;
+      error: null | Error;
       counter: number;
     }
   | {
@@ -85,6 +85,10 @@ type AsyncAction<TType, TData> =
   | {
       type: "UPDATE";
       record: TType;
+    }
+  | {
+      type: "START_LOADING";
+      counter: number;
     }
   | {
       type: "ERROR";
@@ -134,6 +138,12 @@ function asyncReducer<TType extends IdRecord, TData>(
         counter: state.counter!!
       };
     }
+  } else if (action.type === "START_LOADING") {
+    if (action.counter < state.counter) return state;
+    return {
+      ...state,
+      isLoading: true
+    };
   } else if (action.type === "ERROR") {
     if (action.counter < state.counter) {
       return state;
@@ -380,6 +390,10 @@ export function createModel<TType extends IdRecord, TQuery, TFullData>(
       let refetch = async () => {
         if (counter < counterRef.current) return;
         try {
+          dispatch({
+            type: "START_LOADING",
+            counter
+          });
           let freshData = await cb(ajax);
           dispatch({
             type: "FINISHED",

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { createModel } from "../Ajax";
 import {
   Container,
@@ -55,12 +55,12 @@ export default function SearchDemo() {
   let [searchValue, setSearchValue] = useState("");
   let query = repositories.useQuery(searchValue);
 
-  if (query.isLoading) {
-    return null;
-  }
-
   if (query.error) {
     throw query.error;
+  }
+
+  if (!query.data) {
+    return null;
   }
 
   return (

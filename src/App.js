@@ -4,6 +4,7 @@ import { Router, Link } from "@reach/router";
 import { CssBaseline } from "@material-ui/core";
 import UserInfoDemo from "./demos/UserInfo";
 import SearchDemo from "./demos/Search";
+import PaginatedDemo from "./demos/Paginated";
 
 function DemosList() {
   return (
@@ -19,8 +20,10 @@ function DemosList() {
         <li>
           <Link to={"search"}>Repo Search</Link>
         </li>
+        <li>
+          <Link to={"paginated"}>Paginated Table</Link>
+        </li>
       </ul>
-      <Link to={"about"}>What is this?</Link>
     </>
   );
 }
@@ -33,6 +36,7 @@ export default function App() {
         <PullRequestDemo path={"pull-requests"} />
         <UserInfoDemo path={"user-info"} />
         <SearchDemo path={"search"} />
+        <PaginatedDemo path={"/paginated"} />
         <DemosList path={"/"} />
       </Router>
     </>
