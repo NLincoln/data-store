@@ -15,6 +15,11 @@ export type Query<T> = { [x in keyof T]?: QueryField<T[x]> } & {
   pageSize?: number;
   page?: number;
 };
+class NotFoundError extends Error {
+  constructor(id: string, model: string, message?: string) {
+    super(`Failed to look up ${model}:${id} ${message || ""}`);
+  }
+}
 
 export function createInMemoryModel<TType extends { id: string }>(database: {
   [x: string]: TType;
@@ -33,7 +38,11 @@ export function createInMemoryModel<TType extends { id: string }>(database: {
     async getById(id: string) {
       console.log("[FIND-RECORD]", id);
       await wait(250);
-      return database[id] || null;
+      let value = database[id];
+      if (!value) {
+        throw new NotFoundError(id, "common-model");
+      }
+      return value;
     },
     async query({ page, pageSize, ...params }: Query<TType>) {
       console.log("[QUERY]", params);

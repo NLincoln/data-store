@@ -1,4 +1,4 @@
-import { createModel, Model, defaultIsSubscribingTo } from "../Ajax";
+import { createInMemoryModel } from "./common";
 
 type ID = string;
 
@@ -52,85 +52,14 @@ export interface PullRequest extends DataRecord {
 }
 let wait = (timeout: number) => new Promise(r => setTimeout(r, timeout));
 
-class NotFoundError extends Error {
-  constructor(id: string, model: string, message?: string) {
-    super(`Failed to look up ${model}:${id} ${message || ""}`);
-  }
-}
-
-let log = (...messages: any[]) => {
-  console.log(...messages);
-  let formatted = messages
-    .map(message => {
-      if (typeof message === "string" || typeof message === "number") {
-        return message;
-      }
-      return JSON.stringify(message);
-    })
-    .join(" ");
-  if ((window as any).addToNetworkCalls) {
-    (window as any).addToNetworkCalls(formatted);
-  }
-};
-
-const model: Model<PullRequest, Partial<PullRequest>, PullRequest[]> = {
-  isSubscribingTo: defaultIsSubscribingTo,
-  transformQueryResponseToArray(response) {
-    return response;
-  },
-  async query(params) {
-    log("[QUERY] /pull-requests", params);
-    await wait(150);
-    let data = Object.values(database).filter(pr => {
-      return Object.entries(params).every(([key, value]) => {
-        return pr[key as keyof PullRequest] === value;
-      });
-    });
-    return data;
-  },
-  async getById(id) {
-    log("[FIND-RECORD] /pull-requests", id);
-    await wait(150);
-    if (database[id] === undefined) {
-      throw new NotFoundError(id, "pull-request");
-    }
-    return database[id];
-  },
-  async update(id, data) {
-    log("[UPDATE] /pull-requsts", id, data);
-    await wait(250);
-    let prevData = database[id];
-    database[id] = {
-      ...prevData,
-      ...data
-    };
-    return database[id];
-  },
-  async create(data: Omit<PullRequest, "id">): Promise<PullRequest> {
-    log("[CREATE] /pull-requsts", data);
-    await wait(200);
-    let id = autoIncrement++;
-    database[id] = {
-      ...data,
-      id: String(id)
-    };
-    return database[id];
-  },
-  async delete(id: string) {
-    log("[DELETE] /pull-requests", id);
-    await wait(1000);
-    delete database[id];
-  }
-};
-
-const pullRequests = createModel(model);
+const model = createInMemoryModel<PullRequest>(database);
 
 export function useQueryPR(args: Partial<PullRequest>) {
-  return pullRequests.useQuery(args);
+  return model.useQuery(args);
 }
 
 export function useFindPR(id: ID) {
-  let result = pullRequests.useGetById(id);
+  let result = model.useGetById(id);
   if (result.error) {
     throw result.error;
   }
