@@ -33,7 +33,7 @@ export default function App() {
     <>
       <CssBaseline />
       <Router>
-        <PullRequestDemo path={"pull-requests"} />
+        <PullRequestDemo path={"pull-requests"} shouldShowNetworkCalls={true} />
         <UserInfoDemo path={"user-info"} />
         <SearchDemo path={"search"} />
         <PaginatedDemo path={"/paginated"} />

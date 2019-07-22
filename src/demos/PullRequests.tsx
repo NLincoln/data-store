@@ -111,7 +111,7 @@ function NetworkCalls(props: {}) {
   );
 }
 
-export default function App() {
+export default function App(props: { shouldShowNetworkCalls?: boolean }) {
   let forceUpdate = useReducer(v => v + 1, 0)[1];
 
   return (
@@ -153,9 +153,7 @@ export default function App() {
             </Grid>
           </Grid>
         </div>
-        <div>
-          <NetworkCalls />
-        </div>
+        <div>{props.shouldShowNetworkCalls && <NetworkCalls />}</div>
       </div>
     </>
   );

@@ -68,7 +68,9 @@ let log = (...messages: any[]) => {
       return JSON.stringify(message);
     })
     .join(" ");
-  (window as any).addToNetworkCalls(formatted);
+  if ((window as any).addToNetworkCalls) {
+    (window as any).addToNetworkCalls(formatted);
+  }
 };
 
 const model: Model<PullRequest, Partial<PullRequest>, PullRequest[]> = {
