@@ -112,7 +112,14 @@ export default function PaginatedDemo() {
     <Container maxWidth={"md"}>
       <Card>
         <CardHeader
-          title={<>Pagination Demo {results.isLoading && "Loading.."}</>}
+          title={
+            <>
+              Pagination Demo{" "}
+              {results.isLoading && (
+                <span data-testid={"loading"}>Loading...</span>
+              )}
+            </>
+          }
         />
         <CardContent>
           <Table>
